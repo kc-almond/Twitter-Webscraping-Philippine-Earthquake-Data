@@ -341,12 +341,16 @@ def extract_info_from_text(text):
 
     # Process each line
     for line in lines:
-        # Date and Time patterns
-        if any(keyword in line for keyword in ["Date and Time:", "Date:", "Occurred on"]):
-            match = re.search(r"(?:Date and Time:|Date:|Occurred on)?\s*([\d\w\s:\.]+(?:AM|PM|UTC)?)", line,
-                              re.IGNORECASE)
-            if match:
-                info["Date and Time"] = match.group(1).strip()
+        # Date and Time patterns - FIXED
+        if any(keyword.upper() in line.upper() for keyword in ["DATE AND TIME", "DATE", "OCCURRED ON"]):
+            try:
+                # Split by first colon only
+                dt_parts = line.split(':', 1)
+                if len(dt_parts) > 1:
+                    # Take everything after the first colon as the datetime value
+                    info["Date and Time"] = dt_parts[1].strip()
+            except Exception as e:
+                print(f"Error parsing date and time: {e}")
 
         # Magnitude patterns
         elif "Magnitude" in line:
@@ -366,18 +370,24 @@ def extract_info_from_text(text):
             if match:
                 info["Location"] = match.group(1).strip()
 
-        # Intensity patterns (new)
+        # Intensity patterns
         elif "Intensity" in line:
             match = re.search(r"(?:Reported )?Intensity\s*[=:]\s*(.*)", line, re.IGNORECASE)
             if match:
                 info["Intensity"] = match.group(1).strip()
 
-    # Try to parse from the full text if line-by-line approach didn't find everything
+    # Try alternate method if line parsing didn't work for date and time
     if not info["Date and Time"]:
-        match = re.search(r"Date and Time:\s*(.*?)(?:\n|$)", text, re.IGNORECASE | re.DOTALL)
-        if match:
-            info["Date and Time"] = match.group(1).strip()
+        try:
+            # Better regex pattern for date and time that handles multiline
+            date_time_pattern = r"(?:Date and Time|Date):\s*(.*?)(?=\n\w+:|$)"
+            match = re.search(date_time_pattern, text, re.IGNORECASE | re.DOTALL)
+            if match:
+                info["Date and Time"] = match.group(1).strip()
+        except Exception as e:
+            print(f"Error with alternate date-time parsing: {e}")
 
+    # Try to parse from the full text if line-by-line approach didn't find everything else
     if not info["Magnitude"]:
         match = re.search(r"Magnitude\s*[=:]\s*([0-9.]+)", text, re.IGNORECASE)
         if match:
@@ -389,12 +399,12 @@ def extract_info_from_text(text):
             info["Depth"] = match.group(1).strip()
 
     if not info["Location"]:
-        match = re.search(r"Location\s*[=:]\s*(.*?)(?:\n|$)", text, re.IGNORECASE | re.DOTALL)
+        match = re.search(r"Location\s*[=:]\s*(.*?)(?:\n\w+:|$)", text, re.IGNORECASE | re.DOTALL)
         if match:
             info["Location"] = match.group(1).strip()
 
     if not info["Intensity"]:
-        match = re.search(r"(?:Reported )?Intensity\s*[=:]\s*(.*?)(?:\n|$)", text, re.IGNORECASE | re.DOTALL)
+        match = re.search(r"(?:Reported )?Intensity\s*[=:]\s*(.*?)(?:\n\w+:|$)", text, re.IGNORECASE | re.DOTALL)
         if match:
             info["Intensity"] = match.group(1).strip()
 
